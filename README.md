@@ -1,6 +1,6 @@
 ![Goose_Goose_Unji](Goose_Goose_Unji.jpg)
 
-GOOSE-GOOSE-UNJI
+GOOSE GOOSE UNJI
 1. นาย 		ภูมิพัฒน์	อภิวาทธนะพงศ์ 	67070501035
 2. นาย 		วิรชัช 	ทองอุทัยศรี		67070501041
 3. นางสาว 	นคกมล 	แสงดารา			67070501064
