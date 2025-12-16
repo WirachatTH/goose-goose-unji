@@ -6,7 +6,7 @@ module ExplosionFxManager(
     input GameTick,
     input [2:0] currentState,
     
-    // --- Trigger Interface ---
+    /*--- Trigger Interface ---*/
     input [3:0] world_speed,
     input trigger_req,
     input [1:0] anim_type,
@@ -14,22 +14,19 @@ module ExplosionFxManager(
     input [9:0] start_x,
     input [9:0] start_y,
 
-    // --- Rendering Interface ---
+    /*--- Rendering Interface ---*/
     input [9:0] vga_x,
     input [9:0] vga_y,
     output reg render_enable,
     output reg [15:0] rom_addr
     );
 
-    // =================================================================
-    // 1. CONFIG & POOL (OPTIMIZED)
-    // =================================================================
-    // *** OPTIMIZATION: Reduced from 10 to 6 to save timing ***
+    /*กำหนดให้มีเอฟเฟคบนจอพร้อมกันสูงสุดแค่ 6 ครั้งในขณะเดียวกันเท่านั้นเพื่อประหยัดเวลาคำนวณ*/
     parameter MAX_EXPLOSIONS = 6; 
     parameter TICKS_PER_FRAME = 20;
     parameter SPRITE_SHEET_W = 256;
     
-    // States
+    //States
     parameter startState = 3'b000;
     parameter gameState = 3'b001;
     parameter pauseState = 3'b010;
@@ -46,7 +43,7 @@ module ExplosionFxManager(
     reg [1:0] frame_idx [0:MAX_EXPLOSIONS-1];
     reg [4:0] tick_counter [0:MAX_EXPLOSIONS-1];
 
-    // *** NEW: Pre-calculated Cache (Relieves Timing Pressure) ***
+    /*ตัวแปรไวดึงค่า w, h, offset x y ของแอนิเมชั่นจาก sprite มาตามชนิดวัตถุ*/
     reg [9:0] cache_w [0:MAX_EXPLOSIONS-1];
     reg [9:0] cache_h [0:MAX_EXPLOSIONS-1];
     reg [9:0] cache_ox [0:MAX_EXPLOSIONS-1];
@@ -54,9 +51,7 @@ module ExplosionFxManager(
 
     integer i;
 
-    // =================================================================
-    // 2. UPDATE LOGIC (GameTick) - PRE-CALCULATIONS HAPPEN HERE
-    // =================================================================
+    /*----------PRE CALCULATION----------*/
     always @(posedge GameTick or negedge Reset) begin
         if (!Reset) begin
             for(i=0; i<MAX_EXPLOSIONS; i=i+1) active[i] <= 0;
@@ -66,7 +61,7 @@ module ExplosionFxManager(
             end 
             else if (currentState == gameState || currentState == freezeState) begin
                 
-                // --- Spawn New Explosion ---
+                //ถ้าได้รับสัญญาณ ให้สร้างเอฟเฟคทันทีถ้าจำนวนสูงสุดยังไม่เต็ม (ตาม Parameter ต่าง ๆ ที่รับมา)
                 if (trigger_req) begin
                     begin : find_slot
                         reg already_exists;
@@ -93,13 +88,13 @@ module ExplosionFxManager(
                     end
                 end
                 
-                // --- Update Active Explosions & CACHE VALUES ---
+                //การเคลื่อนไหว, แอนิเมชั่น, และ Textures
                 for(i=0; i<MAX_EXPLOSIONS; i=i+1) begin
                     if (active[i]) begin
-                        // 1. Movement
+                        //1. Movement
                         if (move_flag[i] && currentState == gameState) pos_y[i] <= pos_y[i] + world_speed;
 
-                        // 2. Animation
+                        //2. Animation
                         if (tick_counter[i] < TICKS_PER_FRAME-1) begin
                             tick_counter[i] <= tick_counter[i] + 1;
                         end else begin
@@ -113,31 +108,30 @@ module ExplosionFxManager(
                             end
                         end
 
-                        // 3. *** CRITICAL OPTIMIZATION: UPDATE CACHE HERE ***
-                        // This moves the massive "Case" logic to the slow clock
+                        //3. W H AND TEXTURES
                         case(type_store[i])
-                            2'd0: begin // Poo Normal
+                            2'd0: begin //Poo Normal
                                 case(frame_idx[i])
                                     0: begin cache_w[i]<=27; cache_h[i]<=20; cache_ox[i]<=140; cache_oy[i]<=0; end
                                     1: begin cache_w[i]<=33; cache_h[i]<=18; cache_ox[i]<=167; cache_oy[i]<=0; end
                                     2: begin cache_w[i]<=29; cache_h[i]<=12; cache_ox[i]<=200; cache_oy[i]<=0; end
                                 endcase
                             end
-                            2'd1: begin // Poo Snowy
+                            2'd1: begin //Poo Snowy
                                 case(frame_idx[i])
                                     0: begin cache_w[i]<=27; cache_h[i]<=20; cache_ox[i]<=140; cache_oy[i]<=20; end
                                     1: begin cache_w[i]<=33; cache_h[i]<=18; cache_ox[i]<=167; cache_oy[i]<=20; end
                                     2: begin cache_w[i]<=29; cache_h[i]<=12; cache_ox[i]<=200; cache_oy[i]<=20; end
                                 endcase
                             end
-                            2'd2: begin // Goose Normal
+                            2'd2: begin //Goose Normal
                                 case(frame_idx[i])
                                     0: begin cache_w[i]<=26; cache_h[i]<=25; cache_ox[i]<=205; cache_oy[i]<=72; end
                                     1: begin cache_w[i]<=25; cache_h[i]<=17; cache_ox[i]<=231; cache_oy[i]<=74; end
                                     default: begin cache_w[i]<=26; cache_h[i]<=25; cache_ox[i]<=205; cache_oy[i]<=72; end
                                 endcase
                             end
-                            2'd3: begin // Goose Snowy
+                            2'd3: begin //Goose Snowy
                                 case(frame_idx[i])
                                     0: begin cache_w[i]<=26; cache_h[i]<=25; cache_ox[i]<=205; cache_oy[i]<=122; end
                                     1: begin cache_w[i]<=25; cache_h[i]<=17; cache_ox[i]<=231; cache_oy[i]<=124; end
@@ -151,11 +145,9 @@ module ExplosionFxManager(
         end
     end
 
-    // =================================================================
-    // 3. RENDER PIPELINE (OPTIMIZED)
-    // =================================================================
+    /*----------RENDERING PIPELINES----------*/
     
-    // --- STAGE 1: Y-Hit Test & Fetch Cached Values ---
+    //--- STAGE 1: ตรวจสอบแกน Y ก่อนและดึงค่าที่เก็บไว้แล้วออกมา ---
     reg [MAX_EXPLOSIONS-1:0] s1_hits;
     reg [9:0] s1_x;
     reg signed [11:0] s1_diff_y [0:MAX_EXPLOSIONS-1];
@@ -172,13 +164,12 @@ module ExplosionFxManager(
         for(k=0; k<MAX_EXPLOSIONS; k=k+1) begin
             s1_hits[k] <= 0;
             
-            // *** OPTIMIZATION: No Case Statement Here! Just read the Cache ***
+            //ถ้า Explosion ไหนมีสถานะ active ให้ไปดึงค่าที่มันเก็บไว้เฉพาะตัวออกมา
             if (active[k]) begin
-                // Check Y bounds using CACHED height
                 if ($signed({2'b00, vga_y}) >= pos_y[k] && $signed({2'b00, vga_y}) < pos_y[k] + cache_h[k]) begin
                     s1_hits[k] <= 1;
                     s1_diff_y[k] <= $signed({2'b00, vga_y}) - pos_y[k];
-                    // Pass Cached values to next stage
+                    //ส่งค่าเหล่านั้นไปยังขั้นต่อไป
                     s1_w[k] <= cache_w[k]; 
                     s1_h[k] <= cache_h[k]; 
                     s1_ox[k] <= cache_ox[k]; 
@@ -188,7 +179,7 @@ module ExplosionFxManager(
         end
     end
 
-    // --- STAGE 2: X-Hit Test & Addr Calc ---
+    //--- STAGE 2: ตรวจสอบแกน X และคำนวณ address ---
     reg s2_hit;
     reg [15:0] s2_addr;
     reg signed [11:0] s2_diff_x;
@@ -197,7 +188,6 @@ module ExplosionFxManager(
         s2_hit = 0;
         s2_addr = 0;
         
-        // Priority encoder
         for(k=0; k<MAX_EXPLOSIONS; k=k+1) begin
             if (s1_hits[k]) begin
                 s2_diff_x = $signed({2'b00, s1_x}) - $signed({2'b00, pos_x[k]});
@@ -210,7 +200,7 @@ module ExplosionFxManager(
         end
     end
 
-    // --- STAGE 3: Output ---
+    //--- STAGE 3: แล้วค่อยส่ง address ของ explosion ที่กำลังถูก Render กลับออกไป ---
     always @(posedge Clk_In) begin
         render_enable <= s2_hit;
         rom_addr <= s2_addr;

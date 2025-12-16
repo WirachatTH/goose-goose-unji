@@ -17,9 +17,7 @@ module Engine(
     output [3:0] BLUE
     );
 
-    // =========================================================
-    // INPUT PULSE LOGIC
-    // =========================================================
+    /*----------แปลง Input ให้เป็น Pulse เพื่อบังคับให้เรียกสถานะแค่ครั้งเดียวต่อการกดปุ่ม----------*/
     reg StartStop_Prev, Shoot_Prev, GameTick_Prev;
     wire Start_Pulse = StartStop && !StartStop_Prev;
     wire Shoot_Pulse = Shoot && !Shoot_Prev;
@@ -31,6 +29,7 @@ module Engine(
         GameTick_Prev <= GameTick;
     end
     
+    //Config
     reg [2:0] currentState;
     parameter startState = 3'b000;
     parameter gameState = 3'b001;
@@ -66,16 +65,12 @@ module Engine(
     reg is_shooting_req; 
     wire bullet_fired_ack;
 
-    // =========================================================
-    // BCD SCORING SYSTEM
-    // =========================================================
+    /*----------ใช้การนับแบบ BCD สำหรับการคำนวณ Score และ gun_count----------*/
     reg [3:0] score_d0, score_d1, score_d2, score_d3, score_d4, score_d5, score_d6;
     reg [3:0] gun_d0, gun_d1, gun_d2;
-    
-    // Calculate total for logic checks
-    wire [9:0] gun_count = (gun_d2 * 100) + (gun_d1 * 10) + gun_d0;
+    wire [9:0] gun_count = (gun_d2 * 100) + (gun_d1 * 10) + gun_d0; //แปลง BCD digits เป็นเลขจริงๆ
 
-    task inc_gun_bcd;
+    task inc_gun_bcd; //+1
         begin
             if (!(gun_d2 == 9 && gun_d1 == 9 && gun_d0 == 9)) begin
                 if (gun_d0 < 9) gun_d0 <= gun_d0 + 1;
@@ -91,7 +86,7 @@ module Engine(
         end
     endtask
     
-    task dec_gun_bcd;
+    task dec_gun_bcd; //-1
         begin
             if (!(gun_d2 == 0 && gun_d1 == 0 && gun_d0 == 0)) begin
                 if (gun_d0 > 0) gun_d0 <= gun_d0 - 1;
@@ -107,7 +102,7 @@ module Engine(
         end
     endtask
     
-    task inc_score_bcd;
+    task inc_score_bcd; //+1
         begin
             if (!(score_d0 == 9 && score_d1 == 9 && score_d2 == 9 && score_d3 == 9 && score_d4 == 9 && score_d5 == 9 && score_d6 == 9)) begin
                 if (score_d0 < 9) score_d0 <= score_d0 + 1;
@@ -139,9 +134,7 @@ module Engine(
         end
     endtask
 
-    // =========================================================
-    // CHARACTER LOGIC
-    // =========================================================
+    /*----------Character Module----------*/
     parameter char_w_type1 = 25;
     parameter char_h_type1 = 40;
     parameter char_w_type2 = 17; parameter char_h_type2 = 40;
@@ -180,9 +173,7 @@ module Engine(
         .char_frame(char_frame), .x_out(char_x), .y_out(char_y), .is_visible(charActive)
     );
 
-    // =========================================================
-    // CLOUDS LOGIC
-    // =========================================================
+    /*----------Cloud----------*/
     parameter cloud1_w = 550;
     parameter cloud1_h = 210;
     parameter cloud1_sprite_x = 0; parameter cloud1_sprite_y = 90;
@@ -199,9 +190,7 @@ module Engine(
     wire [7:0] cloud_addr_x = cloud1_sprite_x[7:0] + scaled_cloud_x[7:0];
     wire [15:0] w_cloud_addr = { cloud_addr_y, cloud_addr_x };
 
-    // =========================================================
-    // OBJECT LOGIC
-    // =========================================================
+    /*----------Objects----------*/
     wire obj_render_flag;
     wire [15:0] w_obj_addr;
     wire [2:0] collisionType;
@@ -238,11 +227,7 @@ module Engine(
         .current_speed(w_global_speed)
     );
 
-    // =========================================================
-    // UI LOGIC (COMBINATIONAL CALCS)
-    // =========================================================
-    // Note: These area checks are now registered in the Pipeline block below
-    // to match the timing of the Text Logic.
+    /*---------- UI (Inventory bar, Sign, Intruction)----------*/
     
     wire barArea = (x >= 500) && (x < 524) && (y >= 424) && (y < 449);
     wire [7:0] bar_calc_y = 8'd42 + (y[7:0] - 8'd168);
@@ -287,20 +272,14 @@ module Engine(
     wire [7:0] instruction_calc_y = instruction_offset_y + instruction_sprite_y;
     wire [15:0] w_instruction_addr = { instruction_calc_y, instruction_calc_x };
 
-    // =========================================================
-    // HEART LOGIC
-    // =========================================================
+    /*----------Hearts----------*/
     wire heart_active;
     wire [15:0] heart_addr;
     heartDrawer u_heart (.x(x), .y(y), .hp_count(HP_Count),
         .pos_x(10'd500), .pos_y(10'd404),
         .heart_render(heart_active), .heart_rom_addr(heart_addr));
 
-    // =========================================================
-    // TEXT MANAGER & PIPELINE STAGE 1 (REGISTRATION)
-    // =========================================================
-    // In this optimized version, we register ALL UI hits here to align 
-    // the pipeline timing. Previously, Text was registered but Sign/Bar were not.
+    /*----------TEXT HANDLER----------*/
     
     reg [7:0] s1_char_code;
     reg s1_small_font;             
@@ -310,17 +289,16 @@ module Engine(
     wire [9:0] map_sprite_x, map_sprite_y;
     FontMapper u_font_map (.char_code(s1_char_code), .is_small_font(s1_small_font), .o_sprite_x(map_sprite_x), .o_sprite_y(map_sprite_y));
     
-    // NEW REGISTERS FOR PIPELINE ALIGNMENT
     reg r_signHit, r_barHit, r_gunHit, r_instructionHit, r_heartHit;
     reg [15:0] r_sign_addr, r_bar_addr, r_gun_addr, r_instruction_addr, r_heart_addr;
 
     always @(posedge Clk_In) begin
-        // --- TEXT LOGIC (Existing) ---
+        //--- TEXT LOGIC (Existing) ---
         s1_txt_hit <= 0; s1_char_code <= 0; s1_small_font <= 0;
         s1_txt_rx <= 0; s1_txt_ry <= 0;
         
         if (show_hud) begin
-            // 5.1 LABEL "SCORE"
+            //"SCORE"
             if (y >= 374 && y < 381) begin
                 if (x >= 500 && x < 505) begin s1_txt_hit<=1; s1_char_code<="S"; s1_txt_rx<=x-500; s1_txt_ry<=y-374; end
                 else if (x >= 506 && x < 511) begin s1_txt_hit<=1; s1_char_code<="C"; s1_txt_rx<=x-506; s1_txt_ry<=y-374; end
@@ -328,7 +306,7 @@ module Engine(
                 else if (x >= 518 && x < 523) begin s1_txt_hit<=1; s1_char_code<="R"; s1_txt_rx<=x-518; s1_txt_ry<=y-374; end
                 else if (x >= 524 && x < 529) begin s1_txt_hit<=1; s1_char_code<="E"; s1_txt_rx<=x-524; s1_txt_ry<=y-374; end
             end
-            // 5.2 SCORE DIGITS (BCD)
+            //Score digits
             else if (y >= 385 && y < 392) begin
                 if (x >= 500 && x < 505) begin s1_txt_hit<=1; s1_char_code<="0"+score_d6; s1_txt_rx<=x-500; s1_txt_ry<=y-385; end
                 else if (x >= 506 && x < 511) begin s1_txt_hit<=1; s1_char_code<="0"+score_d5; s1_txt_rx<=x-506; s1_txt_ry<=y-385; end
@@ -338,7 +316,7 @@ module Engine(
                 else if (x >= 530 && x < 535) begin s1_txt_hit<=1; s1_char_code<="0"+score_d1; s1_txt_rx<=x-530; s1_txt_ry<=y-385; end
                 else if (x >= 536 && x < 541) begin s1_txt_hit<=1; s1_char_code<="0"+score_d0; s1_txt_rx<=x-536; s1_txt_ry<=y-385; end
             end
-            // 5.3 GUN COUNT (BCD)
+            //gun_count digits
             else if (gun_count_active && y >= 451 && y < 458) begin
                 if (x >= 503 && x < 508) begin
                     if (gun_d2 > 0) begin s1_txt_hit<=1; s1_char_code<="0"+gun_d2; s1_txt_rx<=x-503; s1_txt_ry<=y-451; end
@@ -352,26 +330,23 @@ module Engine(
             end
         end
 
-        // --- NEW: PIPELINE ALIGNMENT FOR OTHER UI ELEMENTS ---
-        // Registering these here ensures they have the same 1-clock latency as the text logic above.
-        
-        // Instruction
+        //Instruction
         if (instructionActive && instructionArea) begin r_instructionHit <= 1; r_instruction_addr <= w_instruction_addr; end 
         else r_instructionHit <= 0;
         
-        // Sign
+        //Sign
         if (signActive && signArea) begin r_signHit <= 1; r_sign_addr <= w_sign_addr; end 
         else r_signHit <= 0;
 
-        // Heart
+        //Heart
         if (heart_active) begin r_heartHit <= 1; r_heart_addr <= heart_addr; end
         else r_heartHit <= 0;
 
-        // Gun Icon
+        //Gun Icon
         if (gunActive && gunArea) begin r_gunHit <= 1; r_gun_addr <= w_gun_final_addr; end
         else r_gunHit <= 0;
 
-        // Bar
+        //Inventory bar
         if (barArea) begin r_barHit <= 1; r_bar_addr <= w_bar_final_addr; end
         else r_barHit <= 0;
     end
@@ -380,9 +355,7 @@ module Engine(
     wire [7:0] txt_calc_x = map_sprite_x[7:0] + s1_txt_rx[7:0];
     wire [15:0] w_txt_final_addr = { txt_calc_y, txt_calc_x };
 
-    // =========================================================
-    // PIPELINE STAGE 2
-    // =========================================================
+    /*----------PortB pipelines----------*/
     reg [15:0] addr_ui;
     reg hit_ui;
     
@@ -390,7 +363,7 @@ module Engine(
     reg hit_game;
 
     always @(*) begin
-        // Group 1: UI Elements (Now using REGISTERED inputs for alignment)
+        //Group 1: UI Elements
         if (s1_txt_hit) begin hit_ui=1; addr_ui=w_txt_final_addr; end
         else if (r_instructionHit) begin hit_ui = 1; addr_ui=r_instruction_addr; end
         else if (r_signHit) begin hit_ui=1; addr_ui=r_sign_addr; end
@@ -399,38 +372,34 @@ module Engine(
         else if (r_barHit) begin hit_ui=1; addr_ui=r_bar_addr; end
         else begin hit_ui=0; addr_ui=0; end
         
-        // Group 2: Game Elements
+        //Group 2: Game Elements
         if (fx_render) begin hit_game=1; addr_game=fx_addr; end
         else if (cloud_hit) begin hit_game=1; addr_game=w_cloud_addr; end
         else if (obj_render_flag) begin hit_game=1; addr_game=w_obj_addr; end
         else begin hit_game=0; addr_game=0; end
     end
 
+    /*----------PortA + PortB pipelines----------*/
     reg [15:0] s2_addr_A, s2_addr_B;
     always @(posedge Clk_In) begin
-        // Port A (Character)
+        //PortA (Character)
         if (charActive && charArea) s2_addr_A <= w_char_final_addr;
         else s2_addr_A <= 0;
         
-        // Port B (Mixed)
+        //PortB (Mixed)
         if (hit_ui) s2_addr_B <= addr_ui;
         else if (hit_game) s2_addr_B <= addr_game;
         else s2_addr_B <= 0;
     end
 
-    // =========================================================
-    // PIPELINE STAGE 3
-    // =========================================================
+    //อ่าน PortA PortB พร้อมกัน
     wire [11:0] color_A, color_B;
-    memory u_rom_main (.Clk_In(Clk_In), .Read_Address_A(s2_addr_A), .Pixel_Color_A(color_A), .Read_Address_B(s2_addr_B), .Pixel_Color_B(color_B));
+    memory u_rom_main (.Clk_In(Clk_In), .Read_Address_A(s2_addr_A),
+    .Pixel_Color_A(color_A), .Read_Address_B(s2_addr_B), .Pixel_Color_B(color_B));
     
     wire is_A_Transparent = (color_A == 12'hC6B);
     wire is_B_Transparent = (color_B == 12'hC6B);
-    
-    // *** OPTIMIZATION: BITWISE LANE LOGIC ***
-    // Replaces 12 comparators with 1 subtraction + 1 bitwise check
-    wire [9:0] lane_dist = x - 160;
-    // Check range (160 to 483) AND check mod 64 (using bottom 6 bits)
+    wire [9:0] lane_dist = x - 160; //การ Render ถนนพื้นหลัง
     wire lanes = (x >= 160 && x < 483) && (lane_dist[5:0] < 3);
 
     reg [11:0] final_pixel;
@@ -448,9 +417,7 @@ module Engine(
     end
     assign RED = final_pixel[11:8]; assign GREEN = final_pixel[7:4]; assign BLUE = final_pixel[3:0];
 
-    // =========================================================
-    // STATE MACHINE (UNCHANGED)
-    // =========================================================
+    /*----------GAME STATE MACHINE----------*/
     always @(posedge Clk_In) begin
         if (!Reset) begin
             currentState <= startState;

@@ -12,11 +12,11 @@ module heartDrawer(
     output [15:0] heart_rom_addr
     );
 
-    // CONFIG
+    //CONFIG
     parameter HEART_W = 19;
     parameter HEART_H = 17;
     parameter SPACING = 2;
-    parameter UNIT_W  = HEART_W + SPACING; // 19+2 = 21
+    parameter UNIT_W  = HEART_W + SPACING; //19+2 = 21
     
     parameter SPRITE_W = 256;
     parameter SPRITE_Y_START = 46;
@@ -25,14 +25,13 @@ module heartDrawer(
     parameter OFF_HALF_X  = 127;
     parameter OFF_EMPTY_X = 147;
 
-    // HIT TEST
+    //Bounding box checker
     wire [9:0] total_width = (HEART_W * 3) + (SPACING * 2);
     wire in_box = (x >= pos_x) && (x < pos_x + total_width) && 
                   (y >= pos_y) && (y < pos_y + HEART_H);
                   
     wire [9:0] rel_x = x - pos_x;
     
-    // *** แก้ไข: เปลี่ยนการหารเป็น if-else (เร็วกว่ามาก) ***
     reg [1:0] heart_idx;
     reg [9:0] pixel_off_x;
     
@@ -49,10 +48,9 @@ module heartDrawer(
         end
     end
     
-    // ถ้าตกในช่องว่าง (Spacing) ไม่ต้องวาด
     wire is_spacing = (pixel_off_x >= HEART_W);
 
-    // LOGIC เลือกรูปภาพ
+    //เลือกรูปภาพ
     reg [9:0] current_sprite_x;
     always @(*) begin
         current_sprite_x = OFF_EMPTY_X;

@@ -1,24 +1,4 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 12/10/2025 05:33:32 PM
-// Design Name: 
-// Module Name: weatherController
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
 
 module weatherController(
     input Reset,
@@ -31,7 +11,7 @@ module weatherController(
     parameter rainy = 3'b001;
     parameter snowy = 3'b010;
     
-    parameter duration = 1800; //3600 GameTicks per season
+    parameter duration = 1800; //1800 GameTicks per season
     
     parameter startState = 3'b000;
     parameter gameState = 3'b001;

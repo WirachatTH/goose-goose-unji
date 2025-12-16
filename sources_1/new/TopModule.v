@@ -17,9 +17,7 @@ module TopModule(
     output [3:0] BLUE
     );
     
-    // -----------------------------------------------------------
-    // 1. INPUT DEBOUNCING
-    // -----------------------------------------------------------
+    //Input & Debouncers
     wire Left;
     wire Right;
     wire Shoot;
@@ -61,9 +59,7 @@ module TopModule(
         .Btn_Out(StartStop)
     );
     
-    // -----------------------------------------------------------
-    // 2. CLOCK GENERATION
-    // -----------------------------------------------------------
+    //GameTick generator (60Hz)
     wire GameTick;
     
     Clk_div u_gametick (
@@ -72,14 +68,11 @@ module TopModule(
         .Clk_Out(GameTick)
     );
     
-    // -----------------------------------------------------------
-    // 3. VGA CONTROLLER & PIPELINE SYNCHRONIZATION
-    // -----------------------------------------------------------
+    //VGA Controller
     wire [9:0] x;
     wire [9:0] y;
     
-    // สัญญาณ "สด" ที่ออกจาก VGA Controller (ยังไม่ Delay)
-    wire HS_raw; 
+    wire HS_raw; //Raw signals
     wire VS_raw;
     
     vga u_vga (
@@ -91,7 +84,7 @@ module TopModule(
         .y(y)
     );
 
-    reg [4:0] hs_delay;
+    reg [4:0] hs_delay; //Delayed signals
     reg [4:0] vs_delay;
     
     always @(posedge Clk_In) begin
@@ -103,9 +96,7 @@ module TopModule(
     assign HS = hs_delay[4];
     assign VS = vs_delay[4];
 
-    // -----------------------------------------------------------
-    // 4. GAME ENGINE
-    // -----------------------------------------------------------
+    //Game Engine
     Engine u_engine (
         .Clk_In(Clk_In),
         .Reset(Reset),
@@ -115,7 +106,7 @@ module TopModule(
         .Shoot(Shoot),
         .SwitchItem(SwitchItem),
         .StartStop(StartStop),
-        .x(x), // ส่ง x, y "สด" เข้าไปเริ่มคำนวณใน Pipeline
+        .x(x),
         .y(y),
         .RED(RED),
         .GREEN(GREEN),

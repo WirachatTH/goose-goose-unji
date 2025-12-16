@@ -1,24 +1,4 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/23/2025 04:39:01 PM
-// Design Name: 
-// Module Name: randomizer
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
 
 module randomizer(
     input Reset,
@@ -31,9 +11,9 @@ module randomizer(
 
     always @(posedge GameTick or negedge Reset) begin
         if (!Reset) begin
-            lfsr_reg <= 16'hFEED; // Seed ค่าเริ่มต้น
+            lfsr_reg <= 16'hFEED; //Seed เริ่มต้น
         end else begin
-            // Shift the LFSR
+            //Shift the LFSR
             lfsr_reg <= {lfsr_reg[14:0], new_bit};
         end
     end

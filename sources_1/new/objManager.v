@@ -17,7 +17,7 @@ module objManager(
     input [9:0] gun_count,
     input is_invincible,
     
-    // Handshake Input
+    //Handshake Input
     input is_firing, 
      
     output obj_render,         
@@ -25,19 +25,19 @@ module objManager(
     output reg [2:0] collisionType,
     output reg [7:0] bonus_score_from_obj,
     
-    // Handshake Output
+    //Handshake Output
     output reg bullet_fired_ack,
     
     output reg expl_trigger,
-    output reg [1:0] expl_type,      // 0,1=Poo, 2,3=Goose
-    output reg expl_moving,          // 1=Moving(Bullet), 0=Still(Char)
+    output reg [1:0] expl_type, //0,1 Poo ระเบิด และ 2,3 Goose (มีแอนิเมชั่นต่างกันตามสภาพอากาศ)
+    output reg expl_moving, //1 Moving(ยิงปืนใส่วัตถุ), 0 Still(เราเดินชนวัตถุ)
     output reg [9:0] expl_x,
     output reg [9:0] expl_y,
     
     output [3:0] current_speed
     );
 
-    //CONFIGURATION & CONSTANTS (Standard)
+    //Config
     parameter sunny = 3'b000;
     parameter rainy = 3'b001;
     parameter snowy = 3'b010;
@@ -52,7 +52,7 @@ module objManager(
     reg [12:0] speed_timer;
     parameter MIN_SPEED = 3;
     parameter MAX_SPEED = 5;
-    parameter TICKS_PER_SPEED_UP = 4200; // 70 seconds per +1 speed
+    parameter TICKS_PER_SPEED_UP = 4200; //70 seconds per +1 speed
     assign current_speed = obj_Speed;
     
     parameter spacing = 115;
@@ -72,7 +72,7 @@ module objManager(
     parameter LANE_WIDTH = 64;   
     parameter LEFT_BORDER = 160;
 
-    // Sprite Dims
+    //x y offsets in sprite
     parameter GOOSE_W = 26; parameter GOOSE_H = 25;
     parameter GOOSE_OFFSET_X = 205; parameter GOOSE_OFFSET_Y = 46;
     parameter GOOSE_OFFSET_X_FREEZE = 205; parameter GOOSE_OFFSET_Y_FREEZE = 97;
@@ -127,13 +127,14 @@ module objManager(
     reg [9:0] g_x;
     reg [2:0] g_lane;
 
-    // Helper: Dynamic Speed/Sprite Vars
+    //Dynamic Speed เปลี่ยนแปลงได้ตามเงื่อนไข
     reg [2:0] goose_spd;
     reg [2:0] walk_poo_spd;
     reg [9:0] curr_goose_x, curr_goose_y;
     reg [9:0] curr_walk_x, curr_walk_y;
     reg [9:0] curr_still_x, curr_still_y;
 
+    //Textures เปลี่ยนแปลงได้ตามเงื่อนไข
     always @(*) begin
         case (currentWeather)
             rainy : begin
@@ -157,7 +158,7 @@ module objManager(
         endcase
     end
 
-    // Lane Calc (Only used for logic spawning, not rendering anymore)
+    //ฟังก์ชันเพื่อคำนวณว่า x ในตอนี้อยู่เลนไหน
     function [2:0] get_lane_from_x;
     input [11:0] x_pos; 
         reg signed [11:0] lane_rel;
@@ -169,14 +170,13 @@ module objManager(
         end
     endfunction
     
+    //ปรับ Hit Box ให้ตัวละคร
     always @(*) begin
         if (gun_count != 0) char_padding_x = 3; else char_padding_x = 7;
         char_padding_y = 25;
     end
 
-    // ==============================================================================
-    // 2. GAME TICK LOGIC (Simple, No Handoff Needed)
-    // ==============================================================================
+    /*----------SPAWNING, ABILITIES, AND COLLISION----------*/
     always @(posedge GameTick or negedge Reset) begin
         if (!Reset) begin
             wrap_idx <= 0;
@@ -190,7 +190,7 @@ module objManager(
                 for(k=0; k<5; k=k+1) begin obj_type[i][k] <= TYPE_EMPTY; obj_offset_x[i][k] <= 0; end
             end
             for (b=0; b<MAX_BULLETS; b=b+1) bullet_active[b] <= 0;
-        end else if (currentState == startState) begin
+        end else if (currentState == startState) begin //ให้ทุกแถบกลับไปว่างเปล่าและอยู่เหนือจอ
             wrap_idx <= 0;
             bullet_fired_ack <= 0;
             obj_Speed <= MIN_SPEED;
@@ -207,15 +207,15 @@ module objManager(
                 collisionType <= 0; bonus_score_from_obj <= 0;
                 select_enable <= 0; bullet_fired_ack <= 0;
                 
-                if (obj_Speed < MAX_SPEED) begin //Linearly increasing the speed by 1 every 40 seconds
+                if (obj_Speed < MAX_SPEED) begin //เพิ่ม Speed เกมทีละ 1 ทุก 70 วินาที
                     if (speed_timer < TICKS_PER_SPEED_UP) begin
                         speed_timer <= speed_timer + 1;
                     end else begin
                         speed_timer <= 0;
-                        obj_Speed <= obj_Speed + 1; // Level Up!
+                        obj_Speed <= obj_Speed + 1;
                     end
                 end
-                // Bullet Init
+                //ยิงและสั่ง Render กระสุน
                 if (is_firing) begin
                     begin : spawn_blk
                         for (b=0; b<MAX_BULLETS; b=b+1) begin
@@ -229,7 +229,7 @@ module objManager(
                         end
                     end
                 end
-                // Bullet Move
+                //การเคลื่อนที่ของกระสุนสำหรับกระสุนที่ถูกยิงไปแล้ว
                 for (b=0; b<MAX_BULLETS; b=b+1) begin
                     if (bullet_active[b]) begin
                         if ($signed(bullet_y[b]) < -10) bullet_active[b] <= 0;
@@ -237,25 +237,26 @@ module objManager(
                     end
                 end
 
-                // Strip & Object Logic
+                //Strip & Object Logic
                 for (i=0; i<num_Strips; i=i+1) begin
                     obj_pos_y[i] <= obj_pos_y[i] + obj_Speed;
                     
                     for (k=0; k<5; k=k+1) begin
-                        // 1. Movement Logic (Offset allowed to grow indefinitely)
+                        //GOOSE MOVEMENT AND ABILITY
                         if (obj_type[i][k] == GOOSE) begin
-                            if (obj_pos_y[i] >= 30) obj_offset_x[i][k] <= obj_offset_x[i][k] - goose_spd;
+                            if (obj_pos_y[i] >= 30) obj_offset_x[i][k] <= obj_offset_x[i][k] - goose_spd; //Horizontal movement
                             
-                            // Spawn Poo Logic (Lane Logic only used here for spawning)
+                            //โอกาสสุ่มที่จะ Spawn STILL_POO ขึ้นมากลางทาง
                             g_x = (LEFT_BORDER + (k * 64) + 32) + obj_offset_x[i][k];
                             g_lane = get_lane_from_x({2'b0, g_x});
                             if (g_lane < 5 && g_lane != k && obj_type[i][g_lane] == TYPE_EMPTY) begin
-                                if (randomize_value[4:0] == 5'd0) begin 
+                                if (randomize_value[2:0] == 3'd0) begin  //โอกาส 1 ใน 8
                                     obj_type[i][g_lane] <= STILL_POO;
                                     obj_offset_x[i][g_lane] <= 0;
                                 end
                             end
                         end 
+                        //WALK_POO MOVEMENT
                         else if (obj_type[i][k] == WALK_POO) begin
                             if ((k==1 || k==3)) begin
                                  if (!obj_dir[i][k]) begin
@@ -268,9 +269,9 @@ module objManager(
                             end
                         end
 
-                        // 3. Collision Logic
+                        //COLLISION LOGIC
                         if (obj_type[i][k] != TYPE_EMPTY) begin
-                            case(obj_type[i][k])
+                            case(obj_type[i][k]) //กำหนด Bounding Box ให้วัตถุชิ้นนั้นๆที่เจอได้อย่างถูกต้อง
                                 GOOSE: begin box_w=GOOSE_W; box_h=GOOSE_H; obj_padding_x=3; end
                                 WALK_POO: begin box_w=WALK_POO_W; box_h=WALK_POO_H; obj_padding_x=3; end
                                 STILL_POO: begin box_w=STILL_POO_W; box_h=STILL_POO_H; obj_padding_x=3; end
@@ -279,11 +280,11 @@ module objManager(
                                 PILL: begin box_w=PILL_W; box_h=PILL_H; obj_padding_x = 0; end
                                 default: begin box_w=GUN_W; box_h=GUN_H; obj_padding_x=0; end
                             endcase
-                            // Calculate logic position
+                            //คำนวณ Position ปัจจุบันของวัตถุชิ้นนั้นๆ
                             box_obj_x = (LEFT_BORDER + (k*64) + 32 - (box_w/2)) + obj_offset_x[i][k];
                             box_obj_y = obj_pos_y[i];
 
-                            // Char Collision
+                            //ตรวจสอบการชนกันกับตัวละคร
                             if ((char_x+char_padding_x < box_obj_x-obj_padding_x+box_w) && (char_x-char_padding_x+char_w > box_obj_x+obj_padding_x) &&
                                 (char_y+char_padding_y < box_obj_y+box_h) && (char_y - 3 +char_h > box_obj_y+3)) begin
                                 if (obj_type[i][k] == GUN) begin
@@ -301,7 +302,7 @@ module objManager(
                                 end
                             end
                             
-                            // Bullet Collision
+                            //ตรวจสอบการชนกันกับกระสุนปืน
                             if (obj_type[i][k] != GUN) begin
                                 for(b=0; b<MAX_BULLETS; b=b+1) begin
                                     if (bullet_active[b] && bullet_x[b] < box_obj_x-obj_padding_x+box_w && bullet_x[b]+3 > box_obj_x+obj_padding_x &&
@@ -319,19 +320,20 @@ module objManager(
                     end 
                 end
 
-                // --- Spawning Logic (Kept same) ---
+                /* ------ Spawning Logic ------ */
                 if (obj_pos_y[wrap_idx] > 480) begin
                     select_enable <= 1;
                     obj_pos_y[wrap_idx] <= obj_pos_y[wrap_idx] - $signed(TOTAL_HEIGHT);
                     obj_pattern[wrap_idx] <= selected_new_pattern;
                     for (k=0; k<5; k=k+1) obj_offset_x[wrap_idx][k] <= 0;
 
+                    //ดึงค่าขนาดต่างๆจากตำแหน่งต่างๆ ของ randomize_value เพื่อเพิ่ม/ลดความน่าจะเป็นให้แตกต่างกัน
                     rand_l1 = randomize_value[3:0]; rand_l2 = randomize_value[6:4];
                     rand_l3 = randomize_value[9:7]; rand_l4 = randomize_value[12:10]; rand_l5 = randomize_value[15:13];
                     if (selected_new_pattern[1] && rand_l2 < 2) is_l2_walker = 1; else is_l2_walker = 0;
                     if (selected_new_pattern[3] && rand_l4 < 2) is_l4_walker = 1; else is_l4_walker = 0;
                     
-                    if (selected_new_pattern == 5'b10000) begin
+                    if (selected_new_pattern == 5'b10000) begin //GOOSE เดินจากขวาไปซ้ายเท่านั้น จึงเกิดเลนขวาสุด
                         obj_type[wrap_idx][4] <= GOOSE;
                         obj_type[wrap_idx][3] <= TYPE_EMPTY; obj_type[wrap_idx][2] <= TYPE_EMPTY;
                         obj_type[wrap_idx][1] <= TYPE_EMPTY; obj_type[wrap_idx][0] <= TYPE_EMPTY;
@@ -352,8 +354,7 @@ module objManager(
                             if (is_l4_walker) begin
                                 obj_type[wrap_idx][4] <= TYPE_EMPTY;
                             end else begin
-                                // Trigger on 0 (1/8 chance).
-                                // Check rand_l4's lowest bit to split result 50/50.
+                                //จุดที่เกิดไอเทม จะแบ่งเป็น 50% GUN, 25% MEDKIT, 25% PILL
                                 if (rand_l5 == 0) begin
                                     obj_type[wrap_idx][4] <= (rand_l4[0]) ? GUN : ( (rand_l4[1]) ? MEDKIT : PILL );
                                 end else begin
@@ -370,11 +371,9 @@ module objManager(
         end
     end
 
-    // ==============================================================================
-    // 3. RENDER PIPELINE (DECOUPLED "CHECK ALL" STRATEGY)
-    // ==============================================================================
+    /*----------RENDERING PIPELINE----------*/
     
-    // --- STAGE 1: LOAD ENTIRE ROW ---
+    /*--- STAGE 1: พิจารณาแต่ละ Strip ---*/
     reg s1_valid;
     reg [9:0] s1_x;
     reg signed [11:0] s1_dist_y;
@@ -391,7 +390,7 @@ module objManager(
         
         for (r=0; r<num_Strips; r=r+1) begin
             dist_check = $signed({2'b00, y}) - obj_pos_y[r];
-            // Check Y-hit (Rough height check 0..50)
+            //เช็คว่า Strip ใดๆ มันอยู่ในพื้นที่ที่ควร Render หรือไม่ จะได้ไม่ต้องไปเสียเวลาดูแถบที่มันตกขอบจอ
             if (dist_check >= 0 && dist_check < 50) begin
                 found_strip = 1; found_idx = r[2:0]; s1_dist_y <= dist_check;
             end
@@ -405,10 +404,7 @@ module objManager(
         end
     end
 
-    // --- STAGE 2: CHECK ALL 5 OBJECTS (PARALLEL) ---
-    // No "Neighbor" logic. Just check if pixel hits Obj 0, Obj 1... Obj 4.
-    // Because offsets can be anything, an object in Slot 0 can be rendered at Slot 4's position.
-    
+    /*--- STAGE 2: ตรวจสอบวัตถุใน 5 เลนของทั้งแถบ ---*/
     reg s2_hit;
     reg [15:0] s2_addr;
     reg [9:0] s2_x, s2_y;
@@ -429,11 +425,11 @@ module objManager(
         hit_any = 0; addr_any = 0;
         
         if (s1_valid) begin
-            // Check all 5 logic slots
+            //Check all 5 logic slots
             for(j=0; j<5; j=j+1) begin
                 t_type = row_cache_type[j];
                 if (t_type != TYPE_EMPTY) begin
-                    // 1. Get Sprite Props
+                    //ถ้ามีวัตถุ ให้ไปดึง texture มาตาม type
                      case(t_type)
                         STILL_POO: begin t_w=STILL_POO_W; t_h=STILL_POO_H; t_off_x=curr_still_x; t_off_y=curr_still_y; end
                         WALK_POO:  begin t_w=WALK_POO_W; t_h=WALK_POO_H; t_off_x=curr_walk_x;  t_off_y=curr_walk_y; end
@@ -444,8 +440,8 @@ module objManager(
                         default:   begin t_w=0;  t_h=0;  t_off_x=0; t_off_y=0; end
                     endcase
                     
-                    // 2. Calculate its visual center (Base + Offset)
-                    // Base Centers: 192, 256, 320, 384, 448
+                    //วางวัตถุไว้ตรงกลางเลนที่มันอยู่
+                    //Base Centers: 192, 256, 320, 384, 448
                     case(j)
                         0: t_center = 192; 1: t_center = 256; 2: t_center = 320;
                         3: t_center = 384; 4: t_center = 448; default: t_center = 0;
@@ -454,7 +450,7 @@ module objManager(
                     t_final_x = $signed({2'b00, t_center - (t_w>>1)}) + row_cache_offset[j];
                     t_diff_x = $signed({2'b00, s1_x}) - t_final_x;
 
-                    // 3. Check Hit (Y-check already done in Stage 1)
+                    //ถ้า x y ของ vga โดนวัตถุ ก็ส่ง address กลับไป
                     if ($unsigned(t_diff_x) < t_w && $unsigned(s1_dist_y) < t_h) begin
                         hit_any = 1;
                         addr_any = { (t_off_y[7:0] + s1_dist_y[7:0]), (t_off_x[7:0] + t_diff_x[7:0]) };
@@ -469,7 +465,7 @@ module objManager(
         end
     end
 
-    // --- STAGE 3 (Standard) ---
+    /*--- STAGE 3 แล้วค่อยเพิ่มการ Render กระสุนในขั้นสุดท้าย ---*/
     reg [9:0] r3_x, r3_y;
     reg r3_obj_hit;
     reg [15:0] r3_obj_addr;
